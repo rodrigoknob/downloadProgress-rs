@@ -1,11 +1,8 @@
-extern crate dirs;
-
 use std::process::Command;
 use std::sync::{Arc, LockResult, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
 
-use dirs::home_dir;
 use eframe::{epi, NativeOptions};
 use eframe::egui::{CentralPanel, Pos2, ProgressBar, RichText, WidgetText};
 use eventuals::{Eventual, EventualWriter, Value};
@@ -13,6 +10,7 @@ use eventuals::{Eventual, EventualWriter, Value};
 use crate::epi::{Frame, IconData, Storage};
 use crate::epi::egui::{Context, Rgba, Ui, Vec2};
 
+use clap::Parser;
 
 #[derive(PartialEq, Clone)]
 struct AppState {
@@ -60,21 +58,8 @@ fn update_value<T>(now: &Eventual<T>, writer: &mut EventualWriter<T>, update: im
 
 }
 
-fn get_script_path() -> Option<String> {
-    let relative_path = String::from("Downloads");
-    let script_name = String::from("test_script.sh");
-
-    if let Some(user_home_path_buf) = dirs::home_dir() {
-        let user_home_path = user_home_path_buf.display().to_string();
-        let print_path = format!("{}/{}/{}", user_home_path, relative_path, script_name);
-        return Some(print_path);
-    } else {
-        None
-    }
-}
-
-fn main() {
-    let native_options = NativeOptions {
+fn get_native_options() -> NativeOptions {
+    return NativeOptions {
         always_on_top: false,
         maximized: false,
         decorated: true,
@@ -86,10 +71,32 @@ fn main() {
         max_window_size: Some(Vec2::new(200.0, 300.0)),
         resizable: false,
         transparent: false
-    };
+    }
+}
 
+
+/// Program to uninstall old version of InCardio and install new version of InCardio
+#[derive(Parser, Debug)]
+#[clap(author, version)]
+struct Args {
+    /// Abosulte path of the uninstall file (.exe)
+    #[clap(short, long)]
+    uninstall_file_path: String,
+
+    /// Abosulte path of the installation file (.exe)
+    #[clap(short, long)]
+    install_file_path: String,
+}
+
+fn main() {
+    let args = Args::parse();
+
+    println!("uninstall path {} ---- install path {}", args.uninstall_file_path, args.install_file_path);
+
+    let native_options = get_native_options();
     let (mut writer, event) = Eventual::<AppState>::new();
     writer.write(AppState { text: String::from("0.0"), progress: 0.0});
+
     let app = App::new(event.clone());
     std::thread::spawn(move ||{
         for _ in 0..10 {
@@ -100,20 +107,6 @@ fn main() {
         }
 
 
-        if let Some(script_path) = get_script_path() {
-            let output = Command::new(script_path)
-                .output()
-                .expect("Failed");
-
-            update_value(&event, &mut writer, move |mut value| {
-                value.text = String::from_utf8(output.stdout).unwrap();
-            });
-        }
-
-
-        // let output = Command::new(script_path)
-        //     .output()
-        //     .expect("Failed");
 
         // let output = Command::new("ls")
         //     // .current_dir("$HOME")
