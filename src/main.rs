@@ -2,7 +2,7 @@ mod app_view;
 
 use std::process::Command;
 use std::sync::{Arc, LockResult, Mutex};
-use std::thread::sleep;
+use std::thread::{sleep, Thread};
 use std::time::Duration;
 
 use eframe::{epi, NativeOptions};
@@ -13,7 +13,7 @@ use crate::epi::{Frame, IconData, Storage};
 use crate::epi::egui::{Context, Rgba, Ui, Vec2};
 
 use clap::Parser;
-use crate::app_view::{App, AppState, get_native_options, update_value};
+use crate::app_view::{App, AppState, update_value};
 
 /// Program to uninstall old version of InCardio and install new version of InCardio
 #[derive(Parser, Debug)]
@@ -30,34 +30,43 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
+    let install_file = args.install_file_path;
+    let uninstall_file = args.uninstall_file_path;
 
-    println!("uninstall path {} ---- install path {}", args.uninstall_file_path, args.install_file_path);
+    println!("uninstall path {} ---- install path {}", uninstall_file, install_file);
 
-    let native_options = get_native_options();
     let (mut writer, event) = Eventual::<AppState>::new();
-    writer.write(AppState { text: String::from("0.0"), progress: 0.0});
+    writer.write(AppState {
+        text: String::from("Hello"),
+        // progress: 0.0,
+        closing_app_complete: false,
+        install_complete: false,
+        uninstall_complete: false
+    });
 
     let app = App::new(event.clone());
     std::thread::spawn(move ||{
-        for _ in 0..10 {
-            update_value(&event, &mut writer, |mut value| {
-                value.progress += 0.1;
-            });
-            sleep(Duration::from_millis(250));
-        }
+        sleep(Duration::new(2, 30));
 
+        update_value(&event, &mut writer, |mut value| {
+            value.closing_app_complete = true;
+        });
 
+        let output = Command::new(uninstall_file)
+            .output()
+            .expect("Failed to execute command");
 
-        // let output = Command::new("ls")
-        //     // .current_dir("$HOME")
-        //     // .arg("/Downloads/test_script.sh")
-        //     .output()
-        //     .expect("Failed to execute command");
+        update_value(&event, &mut writer, |mut value| {
+            value.uninstall_complete = true;
+        });
 
-        // update_value(&event, &mut writer, move |mut value| {
-        //     value.progress += 0.1;
-        //     value.text = String::from_utf8(output.stdout).unwrap();
-        // });
+        let output = Command::new(install_file)
+            .output()
+            .expect("Failed to execute command");
+
+        update_value(&event, &mut writer, |mut value| {
+            value.install_complete = true;
+        });
 
         // println!("{}", String::from_utf8(output.stdout).unwrap());
         // update_value(&event, &mut writer, move |mut value| {
@@ -65,6 +74,8 @@ fn main() {
         // });
     });
 
+    let mut native_options = NativeOptions::default();
+    native_options.initial_window_size = Some(Vec2::new(400.0, 150.0));
 
     eframe::run_native(Box::new(app), native_options);
 }
