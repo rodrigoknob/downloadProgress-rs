@@ -46,12 +46,11 @@ fn main() {
     let show_gui = args.show_gui;
 
     // let install_file = "/home/rodrigo/Documentos/install.sh";
-    let install_file = "C:\\Users\\rodrigo\\Desktop\\test.bat";
+    let install_file = "C:\\Users\\rodrigo\\Downloads\\InCardio-Installer-WIN\\InCardioDuo-Installer.exe";
     // let uninstall_file = "/home/rodrigo/Documentos/uninstall.sh";
-    let uninstall_file = "C:\\Users\\rodrigo\\Desktop\\test.bat";
+    let uninstall_file = "C:\\Users\\rodrigo\\AppData\\Local\\InCardioDuo\\unins000.exe";
 
     println!("uninstall path {} ---- install path {}", uninstall_file, install_file);
-    // close_application(application_pid);
 
     let (mut writer, event) = Eventual::<AppState>::new();
     writer.write(AppState {
@@ -66,6 +65,17 @@ fn main() {
     let thread = std::thread::spawn(move ||{
 
         close_application(application_pid);
+
+        let output = Command::new(uninstall_file)
+            .arg("/SILENT")
+            .output()
+            .expect("Failed to execute command");
+
+        let output = Command::new(install_file)
+            .output()
+            .expect("Failed to execute command");
+
+        std::process::exit(0x0100);
 
         if show_gui {
             update_value(&event, &mut writer, |mut value| {
@@ -102,7 +112,21 @@ fn main() {
 }
 
 fn close_application(pid: u32) {
-    let application_process_exists = check_if_application_process_exists(pid);
+    let mut count = 1;
+    let time_limit = 10;
+    let mut application_process_exists = false;
+
+    while count < time_limit {
+        application_process_exists = check_if_application_process_exists(pid);
+
+        if !application_process_exists {
+            return
+        }
+
+        std::thread::sleep(Duration::from_millis(500));
+        count += 1
+    }
+
     if application_process_exists {
         kill_application_process(pid)
     }
